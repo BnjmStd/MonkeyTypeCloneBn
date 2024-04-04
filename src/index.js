@@ -1,11 +1,19 @@
+import { words as INITIAL_WORDS} from '../mocks/data.js';
+
 const $time = document.querySelector('time');
 const $paragraph = document.querySelector('p');
 const $input = document.querySelector('input');
 
+/* game over */
+const $game = document.querySelector('#game');
+const $results = document.querySelector('#results');
 
-const INITIAL_TIME = 30;
+const $wpm = $results.querySelector('#results-wpm');
+const $accuracy =  $results.querySelector('#results-accuracy');
 
-const TEXT = 'the quick brown fox jums over the lazy dog benja is trying to clone monkey type for fun and profit and using vanilla js'
+const $reloadButton = document.querySelector('#reloadButton')
+
+const INITIAL_TIME = 3;
 
 let words = []
 let currentTime = INITIAL_TIME;
@@ -14,7 +22,11 @@ initGame()
 initEvens()
 
 function initGame() {
-    words = TEXT.split(' ').slice(0, 32)
+    $game.style.display = 'flex'
+    $results.style.display = 'none'
+    $input.value = ''
+
+    words = INITIAL_WORDS.toSorted( () => Math.random() - 0.5).slice(0, 32)
     currentTime = INITIAL_TIME
 
     $time.textContent = currentTime
@@ -54,49 +66,123 @@ function initEvens() {
 
     $input.addEventListener('keydown', onKeyDown)
     $input.addEventListener('keyup', onKeyUp)
+    $reloadButton.addEventListener('click', initGame)
 }
 
+function onKeyUp() {
+        // current element active
+        const $currentWord = $paragraph.querySelector('word.active')
+        const $currentLetter = $currentWord.querySelector('letter.active')
+    
+        const currentWord = $currentWord.innerText.trim()
+    
+        $input.maxLength = currentWord.length
+    
+        const $allLetters = $currentWord.querySelectorAll('letter')
+    
+        $allLetters.forEach($letter => $letter.classList.remove('correct', 'incorrect'))
+    
+    
+        $input.value.split('').forEach( (char, index) => {
+    
+            const $letter = $allLetters[index]
+            const letterToCheck = currentWord[index]
+    
+            const isCorrect = char == letterToCheck
+            const letterClass = isCorrect ? 'correct' : 'incorrect'
+            $letter.classList.add(letterClass)
+        })
+    
+        $currentLetter.classList.remove('active', 'is-last')
+        const inputLength = $input.value.length 
+    
+    
+        const $nextActiveLetters = $allLetters[inputLength]
+    
+        if ($nextActiveLetters){
+            $nextActiveLetters.classList.add('active')
+        } else {
+            $currentLetter.classList.add('active', 'is-last')
+        }
+}
 
-function onKeyUp() {}
-
-function onKeyDown() {
-    // current element active
+function onKeyDown(event) {
+    
     const $currentWord = $paragraph.querySelector('word.active')
     const $currentLetter = $currentWord.querySelector('letter.active')
 
-    const currentWord = $currentWord.innerText.trim()
+    const { key } = event
+    
+    if (key == ' '){
+        event.preventDefault()
+        const $nextWord = $currentWord.nextElementSibling
+        const $nextLetter = $nextWord.querySelector('letter')
+    
+        $currentWord.classList.remove('active', 'marked')
+        $currentLetter.classList.remove('active')
+    
+        $nextWord.classList.add('active')
+        $nextLetter.classList.add('active')
 
-    $input.maxLength = currentWord.length
+        $input.value = ''
 
-    const $allLetters = $currentWord.querySelectorAll('letter')
-
-    $allLetters.forEach($letter => $letter.classList.remove('correct', 'incorrect'))
-
-
-    $input.value.split('').forEach( (char, index) => {
-
-        const $letter = $allLetters[index]
-        const letterToCheck = currentWord[index]
-
-        const isCorrect = char == letterToCheck
-        const letterClass = isCorrect ? 'correct' : 'incorrect'
-        $letter.classList.add(letterClass)
-    })
-
-    $currentLetter.classList.remove('active', 'is-last')
-    const inputLength = $input.value.length 
-
-
-    const $nextActiveLetters = $allLetters[inputLength]
-
-    if ($nextActiveLetters){
-        $nextActiveLetters.classList.add('active')
-    } else {
-        $currentLetter.classList.add('active', 'is-last')
+        const hasMissedLetters = $currentWord
+            .querySelectorAll('letter:not(.correct)').length > 0
+        
+        const classToAdd = hasMissedLetters ? 'marked' : 'correct'
+        $currentWord.classList.add(classToAdd)
+        
+        return 
     }
+
+    if (key === 'Backspace') {
+        const $prevWord = $currentWord.previousElementSibling
+        const $prevLetter = $currentLetter?.previousElementSibling
+    
+        if (!$prevWord && !$prevLetter) {
+            event.preventDefault()
+            return
+        }
+
+        const $wordMarked = $paragraph.querySelector('word.marked')
+        
+        if (!$prevLetter && $wordMarked) {
+            event.preventDefault()
+            $prevWord.classList.remove('marked')
+            $prevWord.classList.add('active')
+
+            const $letterToGo = $prevWord.querySelector('letter:last-child')
+
+            $currentLetter.classList.remove('active')
+            $letterToGo.classList.add('active')
+
+            $input.value = [
+                ...$prevWord.querySelectorAll('letter.correct, letter.incorrect')
+            ].map( $el => {
+                return $el.classList.contains('correct') ? $el.innerText : '*'
+            }).join('')
+
+        }
+    }
+
 }   
 
-
 function gameOver() {
-    console.log('game over')
+    $game.style.display = 'none'
+    $results.style.display = 'flex'
+
+
+    const correctWords = $paragraph.querySelectorAll('word.correct').length
+    const correctLetter = $paragraph.querySelectorAll('letter.correct').length
+    const incorrectLetter = $paragraph.querySelectorAll('letter.incorrect').length
+
+    const totalLetters = correctLetter + incorrectLetter
+
+    const accuracy = totalLetters > 0
+        ? (correctLetter /totalLetters) * 100
+        : 0
+
+    const wpm = correctWords * 60 / INITIAL_TIME
+    $wpm.textContent = wpm
+    $accuracy.textContent = `${accuracy.toFixed(2)}%`
 }
